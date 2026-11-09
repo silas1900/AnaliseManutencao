@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Análise de Manutenção</title>
+<style>
+/* ===== Tokens de design ===== */
+:root{
+  --bg:#f1f4f9; --card:#fff; --ink:#1b2433; --muted:#667085; --line:#e4e8ef;
+  --blue:#1f5fbf; --blue-dark:#0f2f66; --blue-soft:#e8f0fd;
+  --green:#1f9d62; --green-soft:#e5f6ee;
+  --red:#d64045; --red-soft:#fdebec;
+  --amber:#c98a1e; --amber-soft:#fdf3e1;
+  --shadow:0 1px 2px rgba(16,24,40,.06),0 2px 10px rgba(16,24,40,.05);
+  --radius:12px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",Inter,system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;font-size:14px;line-height:1.45}
+.container{max-width:1320px;margin:0 auto;padding:0 20px}
+
+/* ===== Cabeçalho ===== */
+.hero{background:linear-gradient(120deg,var(--blue-dark) 0%,var(--blue) 100%);color:#fff;padding:26px 0 22px}
+.hero .container{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between}
+.eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.8;margin-bottom:4px}
+h1{margin:0;font-size:clamp(22px,3.4vw,32px);letter-spacing:.02em;font-weight:700}
+.hero .sub{margin:6px 0 0;opacity:.85;font-size:13px}
+.actions{display:flex;flex-wrap:wrap;gap:10px}
+.btn{appearance:none;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.12);color:#fff;padding:9px 16px;border-radius:8px;font:inherit;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:background .15s}
+.btn:hover{background:rgba(255,255,255,.24)}
+.btn.solid{background:#fff;color:var(--blue-dark);border-color:#fff}
+.btn.solid:hover{background:#e8f0fd}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn svg{width:16px;height:16px}
+
+/* ===== Mensagens de importação ===== */
+#msgs{margin-top:14px}
+.msg{border-radius:10px;padding:10px 14px;margin-bottom:8px;font-size:13px;display:flex;gap:10px;justify-content:space-between;align-items:flex-start}
+.msg.err{background:var(--red-soft);color:#8f1f23;border:1px solid #f3c2c4}
+.msg.warn{background:var(--amber-soft);color:#7a5210;border:1px solid #f0d9a8}
+.msg.ok{background:var(--green-soft);color:#146c43;border:1px solid #b9e3cf}
+.msg button{background:none;border:0;color:inherit;font-size:18px;line-height:1;cursor:pointer;padding:0 2px}
+.msg ul{margin:4px 0 0 18px;padding:0}
+
+/* ===== Filtros ===== */
+.filters{position:sticky;top:0;z-index:30;background:rgba(241,244,249,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+.filters .container{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;padding-top:12px;padding-bottom:12px}
+.field{display:flex;flex-direction:column;gap:4px;min-width:180px;flex:1 1 180px;max-width:300px}
+.field label{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.field select{font:inherit;padding:9px 10px;border:1px solid #cfd6e2;border-radius:8px;background:#fff;color:var(--ink)}
+.field select:focus{outline:2px solid var(--blue-soft);border-color:var(--blue)}
+.btn-ghost{font:inherit;font-weight:600;padding:9px 14px;border-radius:8px;border:1px solid #cfd6e2;background:#fff;color:var(--blue);cursor:pointer}
+.btn-ghost:hover{background:var(--blue-soft)}
+.count-pill{margin-left:auto;font-size:12px;color:var(--muted);align-self:center}
+
+/* ===== Seções e cartões ===== */
+main{padding:22px 0 40px}
+.section{margin-bottom:26px}
+.section>h2{margin:0 0 12px;font-size:16px;font-weight:700;color:var(--blue-dark);display:flex;align-items:center;gap:10px}
+.section>h2::before{content:"";width:4px;height:18px;border-radius:2px;background:var(--blue)}
+.grid{display:grid;gap:16px}
+.g-kpi{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.g-12{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
+.g-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 18px;border:1px solid var(--line)}
+.card h3{margin:0 0 2px;font-size:14px;font-weight:700}
+.card .hint{margin:0 0 10px;font-size:12px;color:var(--muted)}
+.chart-box{position:relative;height:320px}
+
+/* KPIs */
+.kpi{display:flex;gap:14px;align-items:center;border-left:5px solid var(--blue)}
+.kpi .ico{flex:none;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--blue-soft);color:var(--blue)}
+.kpi .ico svg{width:22px;height:22px}
+.kpi .lbl{font-size:12px;color:var(--muted);font-weight:600}
+.kpi .val{font-size:28px;font-weight:700;line-height:1.1;margin-top:2px}
+.kpi .val small{font-size:13px;font-weight:600;color:var(--muted);margin-left:4px}
+.kpi .sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+.kpi.green{border-left-color:var(--green)} .kpi.green .ico{background:var(--green-soft);color:var(--green)}
+.kpi.red{border-left-color:var(--red)} .kpi.red .ico{background:var(--red-soft);color:var(--red)}
+.kpi.amber{border-left-color:var(--amber)} .kpi.amber .ico{background:var(--amber-soft);color:var(--amber)}
+.kpi .val.na{font-size:17px;color:#7a5210}
+
+/* Confiabilidade */
+.rel-note{margin-top:14px;font-size:12.5px;color:#7a5210;background:var(--amber-soft);border:1px solid #f0d9a8;border-radius:10px;padding:10px 14px}
+.chart-empty{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:0 12%;color:var(--muted);font-size:13px;pointer-events:none}
+.chart-empty.on{display:flex}
+.chart-empty span{background:rgba(255,255,255,.92);padding:8px 12px;border-radius:8px;border:1px dashed #cfd6e2}
+
+/* Estado vazio / upload */
+.dropzone{background:#fff;border:2px dashed #b8c4d9;border-radius:16px;padding:48px 24px;text-align:center;margin:30px 0;color:var(--muted)}
+.dropzone.drag{border-color:var(--blue);background:var(--blue-soft)}
+.dropzone h2{color:var(--ink);margin:12px 0 6px}
+.dropzone .btn{border-color:var(--blue);background:var(--blue);margin-top:14px}
+.dropzone svg{width:48px;height:48px;color:var(--blue)}
+
+details.notes{margin-top:8px;font-size:12.5px;color:var(--muted)}
+details.notes summary{cursor:pointer;font-weight:600;color:var(--blue-dark)}
+details.notes li{margin:4px 0}
+footer{color:var(--muted);font-size:12px;text-align:center;padding:10px 0 30px}
+
+/* Overlay PDF */
+#busy{position:fixed;inset:0;z-index:999;background:rgba(15,47,102,.75);color:#fff;display:none;align-items:center;justify-content:center;font-size:18px;font-weight:600}
+#busy.on{display:flex}
+
+/* Modo de captura do PDF: força layout desktop fixo */
+body.pdf-mode .container{width:1240px;max-width:none}
+body.pdf-mode .g-12{grid-template-columns:minmax(0,2fr) minmax(0,1fr)!important}
+body.pdf-mode .g-2{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+body.pdf-mode .g-3{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+body.pdf-mode .g-kpi{grid-template-columns:repeat(5,minmax(0,1fr))!important}
+
+/* ===== Responsivo ===== */
+@media (max-width:980px){
+  .g-12,.g-2,.g-3{grid-template-columns:1fr}
+  .count-pill{margin-left:0;width:100%}
+}
+@media (max-width:560px){
+  .container{padding:0 14px}
+  .field{max-width:none}
+  .chart-box{height:280px}
+}
+</style>
+<!-- Bibliotecas (CDN). Versões fixas. -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+<header class="hero">
+  <div class="container">
+    <div>
+      <div class="eyebrow">Engenharia Elétrica · Gestão da Manutenção</div>
+      <h1>ANÁLISE DE MANUTENÇÃO</h1>
+      <p class="sub" id="dataInfo">Base de dados 2025 · 61 ordens de serviço</p>
+    </div>
+    <div class="actions">
+      
+      <button class="btn solid" id="pdfBtn" type="button" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>
+        Exportar PDF
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="container"><div id="msgs" aria-live="polite"></div></div>
+
+
+
+<div id="filtersWrap" class="filters" hidden>
+  <div class="container">
+    <div class="field"><label for="fEquip">Equipamento</label><select id="fEquip"></select></div>
+    <div class="field"><label for="fMonth">Mês</label><select id="fMonth"></select></div>
+    <div class="field"><label for="fTipo">Tipo de manutenção</label><select id="fTipo"></select></div>
+    <button class="btn-ghost" id="fClear" type="button">Limpar filtros</button>
+    <div class="count-pill" id="countPill"></div>
+  </div>
+</div>
+
+<main id="app" hidden>
+  <div class="container">
+
+    <!-- Seção 1: KPIs -->
+    <section class="section" id="secKpis">
+      <h2>Visão geral das ordens de serviço</h2>
+      <div class="grid g-kpi">
+        <div class="card kpi"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div><div class="lbl">Ordens programadas</div><div class="val" id="kProg">–</div><div class="sub">Total de OS no período filtrado</div></div></div>
+        <div class="card kpi green"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg></div><div><div class="lbl">Ordens encerradas</div><div class="val" id="kEnc">–</div><div class="sub" id="kEncSub"></div></div></div>
+        <div class="card kpi amber"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div><div class="lbl">Ordens abertas</div><div class="val" id="kAb">–</div><div class="sub" id="kAbSub"></div></div></div>
+        <div class="card kpi red"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/></svg></div><div><div class="lbl">Ordens canceladas</div><div class="val" id="kCan">–</div><div class="sub" id="kCanSub"></div></div></div>
+        <div class="card kpi"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1M17 11a3 3 0 1 0 0-6M21 20v-1a5 5 0 0 0-3-4.6"/></svg></div><div><div class="lbl">HxH das OS finalizadas</div><div class="val" id="kHxh">–<small>h·h</small></div><div class="sub">Σ (tempo de execução × colaboradores)</div></div></div>
+      </div>
+    </section>
+
+    <!-- Seção 2: Programadas x Finalizadas + Prioridade -->
+    <section class="section" id="secExec">
+      <h2>Execução mensal e prioridades</h2>
+      <div class="grid g-12">
+        <div class="card"><h3>Ordens programadas × finalizadas por mês</h3><p class="hint" id="monthHint">Agrupadas pela coluna Data Os</p><div class="chart-box"><canvas id="chMonthly" role="img" aria-label="Gráfico de ordens programadas e finalizadas por mês"></canvas></div></div>
+        <div class="card"><h3>Ordens por prioridade</h3><p class="hint">Quantidade e percentual</p><div class="chart-box"><canvas id="chPrio" role="img" aria-label="Gráfico de rosca por prioridade"></canvas></div></div>
+      </div>
+    </section>
+
+    <!-- Seção 3: Tipo e Área -->
+    <section class="section" id="secDist">
+      <h2>Distribuição por tipo e área de manutenção</h2>
+      <div class="grid g-2">
+        <div class="card"><h3>Ordens por tipo de manutenção</h3><p class="hint">Todas as categorias existentes na base</p><div class="chart-box"><canvas id="chTipo" role="img" aria-label="Gráfico de colunas por tipo de manutenção"></canvas></div></div>
+        <div class="card"><h3>Ordens por área de manutenção</h3><p class="hint">Ordenado da maior para a menor quantidade</p><div class="chart-box"><canvas id="chArea" role="img" aria-label="Gráfico de barras por área de manutenção"></canvas></div></div>
+      </div>
+    </section>
+
+    <!-- Seção 4: Equipamentos -->
+    <section class="section" id="secEquip">
+      <h2>Ordens por equipamento</h2>
+      <div class="card"><h3>Quantidade de OS por equipamento</h3><p class="hint">Ordenado da maior para a menor quantidade</p><div class="chart-box" id="equipBox"><canvas id="chEquip" role="img" aria-label="Gráfico de barras por equipamento"></canvas></div></div>
+    </section>
+
+    <!-- Seção 5: Confiabilidade -->
+    <section class="section" id="secRel">
+      <h2>Indicadores de Confiabilidade</h2>
+      <div class="grid g-3">
+        <div class="card kpi"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></div><div><div class="lbl">MTBF — Tempo médio entre falhas</div><div class="val" id="kMtbf">–</div><div class="sub" id="kMtbfSub"></div></div></div>
+        <div class="card kpi red"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg></div><div><div class="lbl">MTTR — Tempo médio para reparo</div><div class="val" id="kMttr">–</div><div class="sub" id="kMttrSub"></div></div></div>
+        <div class="card kpi green"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></div><div><div class="lbl">Disponibilidade</div><div class="val" id="kDisp">–</div><div class="sub" id="kDispSub">MTBF ÷ (MTBF + MTTR) × 100</div></div></div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3>Evolução mensal do MTBF (acumulado)</h3>
+        <p class="hint">Somente OS corretivas encerradas · horas operadas (8 h/dia, 7 dias/semana) ÷ falhas acumuladas · meses sem falha mantêm a linha contínua · antes da 1ª falha não há MTBF (não é zero)</p>
+        <div class="chart-box"><canvas id="chMtbf" role="img" aria-label="Gráfico de linha do MTBF mensal"></canvas><div class="chart-empty" id="mtbfEmpty"><span id="mtbfEmptyTxt"></span></div></div>
+      </div>
+      <div class="rel-note" id="relNote"></div>
+      <details class="notes">
+        <summary>Notas metodológicas</summary>
+        <ul>
+          <li><b>Programadas:</b> total de OS do período/filtro (encerradas + abertas + canceladas). A base não possui um status "Programada" separado. Cada OS pertence a uma única categoria de status.</li>
+          <li><b>HxH:</b> Σ (tempo de execução em horas × qtd. de colaboradores), somente OS encerradas.</li>
+          <li><b>MTTR:</b> soma dos tempos de execução das OS corretivas encerradas ÷ quantidade dessas OS.</li>
+          <li><b>MTBF:</b> horas operadas acumuladas ÷ falhas corretivas encerradas acumuladas. Premissa: cada equipamento opera 8 h/dia, 7 dias por semana, desde 1º de janeiro até o fim do último mês com registros. Horas operadas = nº de equipamentos × dias × 8 h − tempo de reparo. Meses sem falhas continuam somando horas, e por isso a curva é contínua. Antes da primeira falha o MTBF fica em branco (não é zero). É uma <b>estimativa</b> pela escala de operação, pois a base não possui horímetro. O nº de equipamentos é o de equipamentos distintos na base (ou o filtrado).</li>
+          <li><b>Disponibilidade:</b> MTBF ÷ (MTBF + MTTR) × 100.</li>
+          <li>Preventivas, preditivas, abertas e canceladas não entram nos indicadores de confiabilidade.</li>
+        </ul>
+      </details>
+    </section>
+
+  </div>
+</main>
+
+<footer>Análise de Manutenção · Dashboard em HTML5, CSS3, JavaScript, Chart.js, jsPDF e html2canvas · Projeto de portfólio</footer>
+<div id="busy">Gerando PDF…</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ================= CONFIGURAÇÃO ================= */
+var MODE = 'fixed';            // 'upload' ou 'fixed'
+var EMBEDDED = [{"OS": 202625112, "Equipamento": "Compressor 01", "Área de manutenção": "Elétrica", "Prioridade": "Alta", "Data Os": "2025-01-01", "Status OS": "Encerrada", "Tempço de execução": "02:30:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625113, "Equipamento": "Compressor 02", "Área de manutenção": "Mecânica", "Prioridade": "Baixa", "Data Os": "2025-01-10", "Status OS": "Encerrada", "Tempço de execução": "00:50:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 1}, {"OS": 202625114, "Equipamento": "Compressor 03", "Área de manutenção": "Instrumentação", "Prioridade": "Média", "Data Os": "2025-01-15", "Status OS": "Encerrada", "Tempço de execução": "01:22:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625115, "Equipamento": "Motobomba 01", "Área de manutenção": "Elétrica", "Prioridade": "Alta", "Data Os": "2025-01-25", "Status OS": "Encerrada", "Tempço de execução": "03:00:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625116, "Equipamento": "Motobomba 02", "Área de manutenção": "Mecânica", "Prioridade": "Baixa", "Data Os": "2025-02-01", "Status OS": "Encerrada", "Tempço de execução": "00:45:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 1}, {"OS": 202625117, "Equipamento": "Motobomba 03", "Área de manutenção": "Instrumentação", "Prioridade": "Baixa", "Data Os": "2025-02-11", "Status OS": "Encerrada", "Tempço de execução": "00:36:00", "Tipo de manutenção": "Corretiva", "Qtd colaboradores": 1}, {"OS": 202625118, "Equipamento": "Motor 01", "Área de manutenção": "Elétrica", "Prioridade": "Média", "Data Os": "2025-02-25", "Status OS": "Encerrada", "Tempço de execução": "02:30:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625119, "Equipamento": "Motor 02", "Área de manutenção": "Mecânica", "Prioridade": "Média", "Data Os": "2025-02-27", "Status OS": "Encerrada", "Tempço de execução": "01:30:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 1}, {"OS": 202625120, "Equipamento": "Motor 03", "Área de manutenção": "Elétrica", "Prioridade": "Alta", "Data Os": "2025-03-08", "Status OS": "Encerrada", "Tempço de execução": "04:00:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625121, "Equipamento": "Máquina de solda 01", "Área de manutenção": "Mecânica", "Prioridade": "Baixa", "Data Os": "2025-03-12", "Status OS": "Encerrada", "Tempço de execução": "00:45:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 1}, {"OS": 202625122, "Equipamento": "Máquina de solda 02", "Área de manutenção": "Instrumentação", "Prioridade": "Baixa", "Data Os": "2025-03-26", "Status OS": "Cancelada", "Tempço de execução": "00:00:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625123, "Equipamento": "Ponte rolante 01", "Área de manutenção": "Elétrica", "Prioridade": "Baixa", "Data Os": "2025-03-29", "Status OS": "Encerrada", "Tempço de execução": "01:22:00", "Tipo de manutenção": "Corretiva", "Qtd colaboradores": 1}, {"OS": 202625124, "Equipamento": "Ponte rolante 02", "Área de manutenção": "Eletrônica", "Prioridade": "Baixa", "Data Os": "2025-04-01", "Status OS": "Encerrada", "Tempço de execução": "03:00:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 1}, {"OS": 202625125, "Equipamento": "Motobomba 02", "Área de manutenção": "Mecânica", "Prioridade": "Alta", "Data Os": "2025-04-01", "Status OS": "Encerrada", "Tempço de execução": "00:45:00", "Tipo de manutenção": "Corretiva", "Qtd colaboradores": 1}, {"OS": 202625126, "Equipamento": "Empilhadeira 01", "Área de manutenção": "Elétrica", "Prioridade": "Média", "Data Os": "2025-04-10", "Status OS": "Encerrada", "Tempço de execução": "02:45:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625127, "Equipamento": "Empilhadeira 02", "Área de manutenção": "Eletrônica", "Prioridade": "Alta", "Data Os": "2025-04-15", "Status OS": "Encerrada", "Tempço de execução": "00:36:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 3}, {"OS": 202625128, "Equipamento": "Torno CNC 01", "Área de manutenção": "Mecânica", "Prioridade": "Média", "Data Os": "2025-05-01", "Status OS": "Cancelada", "Tempço de execução": "00:00:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 1}, {"OS": 202625129, "Equipamento": "Motor 03", "Área de manutenção": "Elétrica", "Prioridade": "Alta", "Data Os": "2025-05-08", "Status OS": "Encerrada", "Tempço de execução": "02:30:00", "Tipo de manutenção": "Corretiva", "Qtd colaboradores": 2}, {"OS": 202625130, "Equipamento": "Caminhão guindauto", "Área de manutenção": "Eletrônica", "Prioridade": "Baixa", "Data Os": "2025-05-12", "Status OS": "Encerrada", "Tempço de execução": "00:45:00", "Tipo de manutenção": "Corretiva", "Qtd colaboradores": 1}, {"OS": 202625131, "Equipamento": "Caminhão com Cesto Aéreo", "Área de manutenção": "Mecânica", "Prioridade": "Baixa", "Data Os": "2025-05-26", "Status OS": "Encerrada", "Tempço de execução": "00:36:00", "Tipo de manutenção": "Corretiva", "Qtd colaboradores": 2}, {"OS": 202625132, "Equipamento": "Torno CNC 01", "Área de manutenção": "Eletrônica", "Prioridade": "Média", "Data Os": "2025-05-29", "Status OS": "Encerrada", "Tempço de execução": "02:30:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 1}, {"OS": 202625133, "Equipamento": "Frisadeira", "Área de manutenção": "Instrumentação", "Prioridade": "Alta", "Data Os": "2025-06-05", "Status OS": "Encerrada", "Tempço de execução": "04:00:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625134, "Equipamento": "Compressor 01", "Área de manutenção": "Elétrica", "Prioridade": "Alta", "Data Os": "2025-06-11", "Status OS": "Encerrada", "Tempço de execução": "00:45:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625135, "Equipamento": "Compressor 02", "Área de manutenção": "Elétrica", "Prioridade": "Baixa", "Data Os": "2025-06-11", "Status OS": "Encerrada", "Tempço de execução": "01:50:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 1}, {"OS": 202625136, "Equipamento": "Motor 01", "Área de manutenção": "Mecânica", "Prioridade": "Alta", "Data Os": "2025-06-25", "Status OS": "Encerrada", "Tempço de execução": "00:50:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 3}, {"OS": 202625137, "Equipamento": "Motor 02", "Área de manutenção": "Instrumentação", "Prioridade": "Baixa", "Data Os": "2025-06-27", "Status OS": "Encerrada", "Tempço de execução": "01:22:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 1}, {"OS": 202625138, "Equipamento": "Motor 03", "Área de manutenção": "Elétrica", "Prioridade": "Baixa", "Data Os": "2025-07-01", "Status OS": "Encerrada", "Tempço de execução": "03:00:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625139, "Equipamento": "Máquina de solda 01", "Área de manutenção": "Mecânica", "Prioridade": "Baixa", "Data Os": "2025-07-05", "Status OS": "Encerrada", "Tempço de execução": "02:45:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625140, "Equipamento": "Máquina de solda 02", "Área de manutenção": "Elétrica", "Prioridade": "Média", "Data Os": "2025-07-12", "Status OS": "Encerrada", "Tempço de execução": "00:36:00", "Tipo de manutenção": "Corretiva", "Qtd colaboradores": 1}, {"OS": 202625141, "Equipamento": "Ponte rolante 02", "Área de manutenção": "Eletrônica", "Prioridade": "Média", "Data Os": "2025-07-18", "Status OS": "Encerrada", "Tempço de execução": "00:45:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625142, "Equipamento": "Empilhadeira 01", "Área de manutenção": "Mecânica", "Prioridade": "Alta", "Data Os": "2025-08-11", "Status OS": "Encerrada", "Tempço de execução": "01:36:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625143, "Equipamento": "Empilhadeira 02", "Área de manutenção": "Instrumentação", "Prioridade": "Alta", "Data Os": "2025-08-25", "Status OS": "Encerrada", "Tempço de execução": "02:30:00", "Tipo de manutenção": "Preditiva", "Qtd colaboradores": 2}, {"OS": 202625144, "Equipamento": "Motor 01", "Área de manutenção": "Mecânica", "Prioridade": "Alta", "Data Os": "2025-08-25", "Status OS": "Encerrada", "Tempço de execução": "00:50:00", "Tipo de manutenção": "Corretiva", "Qtd colaboradores": 3}, {"OS": 202625145, "Equipamento": "Compressor 01", "Área de manutenção": "Elétrica", "Prioridade": "Baixa", "Data Os": "2025-08-27", "Status OS": "Cancelada", "Tempço de execução": "00:36:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 1}, {"OS": 202625146, "Equipamento": "Compressor 03", "Área de manutenção": "Mecânica", "Prioridade": "Alta", "Data Os": "2025-09-01", "Status OS": "Encerrada", "Tempço de execução": "02:30:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625147, "Equipamento": "Motobomba 01", "Área de manutenção": "Instrumentação", "Prioridade": "Baixa", "Data Os": "2025-09-05", "Status OS": "Encerrada", "Tempço de execução": "01:30:00", "Tipo de manutenção": "Corretiva", "Qtd colaboradores": 1}, {"OS": 202625148, "Equipamento": "Frisadeira", "Área de manutenção": "Instrumentação", "Prioridade": "Alta", "Data Os": "2025-09-05", "Status OS": "Encerrada", "Tempço de execução": "01:30:00", "Tipo de manutenção": "Corretiva", "Qtd colaboradores": 2}, {"OS": 202625149, "Equipamento": "Motobomba 02", "Área de manutenção": "Elétrica", "Prioridade": "Alta", "Data Os": "2025-09-20", "Status OS": "Encerrada", "Tempço de execução": "04:00:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 3}, {"OS": 202625150, "Equipamento": "Compressor 03", "Área de manutenção": "Mecânica", "Prioridade": "Alta", "Data Os": "2025-10-01", "Status OS": "Encerrada", "Tempço de execução": "02:30:00", "Tipo de manutenção": "Corretiva", "Qtd colaboradores": 2}, {"OS": 202625151, "Equipamento": "Caminhão com Cesto Aéreo", "Área de manutenção": "Elétrica", "Prioridade": "Baixa", "Data Os": "2025-10-08", "Status OS": "Encerrada", "Tempço de execução": "00:45:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 1}, {"OS": 202625152, "Equipamento": "Torno CNC 01", "Área de manutenção": "Eletrônica", "Prioridade": "Baixa", "Data Os": "2025-10-12", "Status OS": "Encerrada", "Tempço de execução": "01:50:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625153, "Equipamento": "Torno CNC 01", "Área de manutenção": "Instrumentação", "Prioridade": "Baixa", "Data Os": "2025-10-26", "Status OS": "Encerrada", "Tempço de execução": "00:50:00", "Tipo de manutenção": "Corretiva", "Qtd colaboradores": 1}, {"OS": 202625154, "Equipamento": "Motor 03", "Área de manutenção": "Elétrica", "Prioridade": "Média", "Data Os": "2025-10-29", "Status OS": "Encerrada", "Tempço de execução": "01:22:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625155, "Equipamento": "Máquina de solda 01", "Área de manutenção": "Mecânica", "Prioridade": "Média", "Data Os": "2025-11-05", "Status OS": "Encerrada", "Tempço de execução": "02:45:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625156, "Equipamento": "Frisadeira", "Área de manutenção": "Instrumentação", "Prioridade": "Alta", "Data Os": "2025-11-12", "Status OS": "Encerrada", "Tempço de execução": "03:36:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625157, "Equipamento": "Compressor 01", "Área de manutenção": "Elétrica", "Prioridade": "Alta", "Data Os": "2025-11-18", "Status OS": "Cancelada", "Tempço de execução": "00:00:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625158, "Equipamento": "Compressor 02", "Área de manutenção": "Eletrônica", "Prioridade": "Baixa", "Data Os": "2025-11-30", "Status OS": "Encerrada", "Tempço de execução": "01:36:00", "Tipo de manutenção": "Corretiva", "Qtd colaboradores": 1}, {"OS": 202625159, "Equipamento": "Motor 01", "Área de manutenção": "Eletrônica", "Prioridade": "Alta", "Data Os": "2025-12-08", "Status OS": "Encerrada", "Tempço de execução": "02:30:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 3}, {"OS": 202625160, "Equipamento": "Motobomba 03", "Área de manutenção": "Mecânica", "Prioridade": "Média", "Data Os": "2025-12-12", "Status OS": "Encerrada", "Tempço de execução": "00:36:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 1}, {"OS": 202625161, "Equipamento": "Motor 01", "Área de manutenção": "Instrumentação", "Prioridade": "Alta", "Data Os": "2025-12-16", "Status OS": "Encerrada", "Tempço de execução": "02:30:00", "Tipo de manutenção": "Preditiva", "Qtd colaboradores": 2}, {"OS": 202625162, "Equipamento": "Motor 02", "Área de manutenção": "Elétrica", "Prioridade": "Alta", "Data Os": "2025-12-19", "Status OS": "Aberta", "Tempço de execução": "00:00:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625163, "Equipamento": "Empilhadeira 01", "Área de manutenção": "Elétrica", "Prioridade": "Baixa", "Data Os": "2025-12-21", "Status OS": "Aberta", "Tempço de execução": "00:00:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 1}, {"OS": 202625164, "Equipamento": "Empilhadeira 02", "Área de manutenção": "Eletrônica", "Prioridade": "Alta", "Data Os": "2025-12-26", "Status OS": "Aberta", "Tempço de execução": "00:00:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625165, "Equipamento": "Compressor 01", "Área de manutenção": "Mecânica", "Prioridade": "Baixa", "Data Os": "2025-12-27", "Status OS": "Aberta", "Tempço de execução": "00:00:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 2}, {"OS": 202625166, "Equipamento": "Compressor 01", "Área de manutenção": "Mecânica", "Prioridade": "Baixa", "Data Os": "2025-12-30", "Status OS": "Aberta", "Tempço de execução": "00:00:00", "Tipo de manutenção": "Preventiva", "Qtd colaboradores": 1}, {"OS": 202625167, "Equipamento": "Motobomba 02", "Área de manutenção": "Mecânica", "Prioridade": "Alta", "Data Os": "2025-06-01", "Status OS": "Encerrada", "Tempço de execução": "01:45:00", "Tipo de manutenção": "Corretiva", "Qtd colaboradores": 1}, {"OS": 202625168, "Equipamento": "Motor 03", "Área de manutenção": "Elétrica", "Prioridade": "Alta", "Data Os": "2025-06-20", "Status OS": "Encerrada", "Tempço de execução": "02:30:00", "Tipo de manutenção": "Corretiva", "Qtd colaboradores": 2}, {"OS": 202625169, "Equipamento": "Motobomba 03", "Área de manutenção": "Instrumentação", "Prioridade": "Baixa", "Data Os": "2025-03-26", "Status OS": "Encerrada", "Tempço de execução": "00:36:00", "Tipo de manutenção": "Corretiva", "Qtd colaboradores": 1}, {"OS": 202625170, "Equipamento": "Motobomba 03", "Área de manutenção": "Instrumentação", "Prioridade": "Baixa", "Data Os": "2025-04-11", "Status OS": "Encerrada", "Tempço de execução": "00:36:00", "Tipo de manutenção": "Corretiva", "Qtd colaboradores": 1}, {"OS": 202625171, "Equipamento": "Motor 01", "Área de manutenção": "Mecânica", "Prioridade": "Alta", "Data Os": "2025-10-25", "Status OS": "Encerrada", "Tempço de execução": "00:50:00", "Tipo de manutenção": "Corretiva", "Qtd colaboradores": 3}, {"OS": 202625172, "Equipamento": "Ponte rolante 01", "Área de manutenção": "Elétrica", "Prioridade": "Baixa", "Data Os": "2025-04-30", "Status OS": "Encerrada", "Tempço de execução": "01:22:00", "Tipo de manutenção": "Corretiva", "Qtd colaboradores": 1}];      // null (upload) ou linhas da planilha (fixo)
+var SHEET_NAME = 'BaseDeDados2025';
+
+var MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+var MES_ABR = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+var COL = {blue:'#1f5fbf', blue2:'#6aa3ec', green:'#1f9d62', red:'#d64045', amber:'#e0a030', slate:'#8793a6', ink:'#1b2433'};
+var CAT_PALETTE = ['#1f5fbf','#2a9d8f','#e0a030','#7a5cc7','#d64045','#4f8fe8','#8793a6','#c76b98'];
+var PRIO_COLORS = {'alta':'#d64045','media':'#e0a030','baixa':'#1f9d62'};
+
+/* Colunas obrigatórias (comparação sem acentos/maiúsculas). */
+var REQUIRED = [
+  {key:'os',    label:'OS',                 match:'os'},
+  {key:'equip', label:'Equipamento',        match:'equipamento'},
+  {key:'area',  label:'Área de manutenção', match:'area de manutencao'},
+  {key:'prio',  label:'Prioridade',         match:'prioridade'},
+  {key:'data',  label:'Data Os',            match:'data os'},
+  {key:'status',label:'Status OS',          match:'status os'},
+  {key:'tempo', label:'Tempo de execução',  match:'tempo de execucao'},
+  {key:'tipo',  label:'Tipo de manutenção', match:'tipo de manutencao'},
+  {key:'qtd',   label:'Qtd colaboradores',  match:'qtd colaboradores'}
+];
+
+/* ================= ESTADO ================= */
+var S = { rows:[], fileName:'', sheet:'', charts:{} };
+var $ = function(id){ return document.getElementById(id); };
+
+/* ================= UTILITÁRIOS ================= */
+function norm(s){
+  return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+}
+/* Aceita variações de grafia do cabeçalho (ex.: "Tempço de execução"). */
+function headerKey(h){ return norm(h).replace('tempco','tempo'); }
+function fmt(n,d){ return Number(n).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:d==null?1:d}); }
+function pct(v,t){ return t>0 ? fmt(v/t*100,1)+'%' : '0%'; }
+function pad(n){ return (n<10?'0':'')+n; }
+
+/* Data do Excel (serial numérico, Date, "dd/mm/aaaa" ou "aaaa-mm-dd") → {y,m,d,t} ou null */
+function parseDate(v){
+  var dt = null;
+  if(v instanceof Date && !isNaN(v)){ dt = new Date(Date.UTC(v.getFullYear(),v.getMonth(),v.getDate())); }
+  else if(typeof v === 'number' && isFinite(v) && v > 20000 && v < 80000){ dt = new Date(Math.floor(v - 25569) * 86400000); }
+  else if(typeof v === 'string'){
+    var s = v.trim(), m;
+    if((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) dt = new Date(Date.UTC(+m[1],+m[2]-1,+m[3]));
+    else if((m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/))){ var y=+m[3]; if(y<100) y+=2000; dt = new Date(Date.UTC(y,+m[2]-1,+m[1])); }
+  }
+  if(!dt || isNaN(dt)) return null;
+  return {y:dt.getUTCFullYear(), m:dt.getUTCMonth()+1, d:dt.getUTCDate(), t:dt.getTime()};
+}
+/* Duração (fração de dia do Excel, "hh:mm[:ss]", Date de hora) → horas ou null */
+function parseDuration(v){
+  if(v==null || v==='') return null;
+  if(typeof v === 'number') return isFinite(v) && v>=0 ? v*24 : null;
+  if(v instanceof Date && !isNaN(v)) return v.getHours()+v.getMinutes()/60+v.getSeconds()/3600;
+  if(typeof v === 'string'){
+    var s = v.trim(), m;
+    if((m = s.match(/^(\d+):(\d{1,2})(?::(\d{1,2}))?$/))) return +m[1] + +m[2]/60 + (m[3]?+m[3]/3600:0);
+    var n = parseFloat(s.replace(',','.'));
+    return isFinite(n) && n>=0 ? n : null;
+  }
+  return null;
+}
+function parseNum(v){
+  if(v==null || v==='') return null;
+  var n = typeof v==='number' ? v : parseFloat(String(v).replace(',','.'));
+  return isFinite(n) && n>=0 ? n : null;
+}
+function normStatus(s){
+  var n = norm(s);
+  if(/^(encerrad|finaliz|conclu|fechad)/.test(n)) return 'Encerrada';
+  if(/^abert/.test(n)) return 'Aberta';
+  if(/^cancel/.test(n)) return 'Cancelada';
+  return 'Outro';
+}
+function clean(v){ var s = String(v==null?'':v).trim(); return s || '(Não informado)'; }
+
+/* ================= IMPORTAÇÃO / VALIDAÇÃO ================= */
+/* Converte matriz (linha 0 = cabeçalho) em registros normalizados. */
+function buildRecords(matrix){
+  var issues = [], best = -1, bestHits = 0, map = null, i, j;
+  for(i=0; i<Math.min(matrix.length,15); i++){
+    var m = {};
+    (matrix[i]||[]).forEach(function(h,idx){ var k = headerKey(h); if(k && !(k in m)) m[k] = idx; });
+    var hits = REQUIRED.filter(function(r){ return r.match in m; }).length;
+    if(hits > bestHits){ bestHits = hits; best = i; map = m; }
+  }
+  if(best < 0) return {error:'Cabeçalho não encontrado. A planilha precisa conter as colunas: ' + REQUIRED.map(function(r){return r.label;}).join(', ') + '.'};
+  var missing = REQUIRED.filter(function(r){ return !(r.match in map); });
+  if(missing.length) return {error:'Colunas obrigatórias ausentes: ' + missing.map(function(r){return r.label;}).join(', ') + '.'};
+
+  var rows = [], c = {noDate:0, badDur:0, badQtd:0, noOS:0, blankCat:0, other:0, dup:0, empty:0}, seen = {};
+  for(i=best+1; i<matrix.length; i++){
+    var r = matrix[i] || [];
+    var allEmpty = true;
+    for(j=0;j<r.length;j++){ if(r[j]!=null && String(r[j]).trim()!==''){ allEmpty=false; break; } }
+    if(allEmpty){ c.empty++; continue; }
+    var g = function(k){ return r[map[REQUIRED.filter(function(x){return x.key===k;})[0].match]]; };
+    var d = parseDate(g('data'));
+    var line = i+1;
+    if(!d){ c.noDate++; continue; }
+    var os = String(g('os')==null?'':g('os')).trim();
+    if(!os) c.noOS++;
+    else if(seen[os]){ c.dup++; continue; }
+    else seen[os] = true;
+    var hours = parseDuration(g('tempo')); if(hours==null) c.badDur++;
+    var qtd = parseNum(g('qtd')); if(qtd==null) c.badQtd++;
+    var rec = {
+      os: os || ('linha '+line), equip: clean(g('equip')), area: clean(g('area')), prio: clean(g('prio')),
+      tipo: clean(g('tipo')), date: d, ym: d.y+'-'+pad(d.m), status: normStatus(g('status')), hours: hours, qtd: qtd
+    };
+    if(rec.equip==='(Não informado)'||rec.area==='(Não informado)'||rec.prio==='(Não informado)'||rec.tipo==='(Não informado)') c.blankCat++;
+    if(rec.status==='Outro') c.other++;
+    rec.isCorr = /^corret/.test(norm(rec.tipo));
+    rows.push(rec);
+  }
+  if(c.noDate)  issues.push({level:'warn', text:c.noDate+' linha(s) ignorada(s) por data inválida ou vazia em "Data Os".'});
+  if(c.dup)     issues.push({level:'warn', text:c.dup+' OS duplicada(s) ignorada(s) (mantida a primeira ocorrência).'});
+  if(c.badDur)  issues.push({level:'warn', text:c.badDur+' OS com tempo de execução vazio/inválido: excluídas de HxH e MTTR.'});
+  if(c.badQtd)  issues.push({level:'warn', text:c.badQtd+' OS com quantidade de colaboradores vazia/inválida: excluídas do HxH.'});
+  if(c.noOS)    issues.push({level:'warn', text:c.noOS+' linha(s) sem número de OS.'});
+  if(c.blankCat)issues.push({level:'warn', text:c.blankCat+' OS com campo de classificação vazio (agrupadas como "(Não informado)").'});
+  if(c.other)   issues.push({level:'warn', text:c.other+' OS com Status OS fora de Encerrada/Aberta/Cancelada: contam apenas em "programadas".'});
+  if(!rows.length) return {error:'Nenhuma linha válida encontrada na planilha.'};
+  return {rows:rows, issues:issues};
+}
+
+function showMsg(level, html, list){
+  var box = document.createElement('div');
+  box.className = 'msg ' + level;
+  var inner = document.createElement('div');
+  var b = document.createElement('div'); b.textContent = html; inner.appendChild(b);
+  if(list && list.length){ var ul = document.createElement('ul'); list.forEach(function(t){ var li=document.createElement('li'); li.textContent=t; ul.appendChild(li); }); inner.appendChild(ul); }
+  var x = document.createElement('button'); x.type='button'; x.setAttribute('aria-label','Fechar'); x.innerHTML='&times;';
+  x.onclick = function(){ box.remove(); };
+  box.appendChild(inner); box.appendChild(x);
+  $('msgs').appendChild(box);
+}
+function clearMsgs(){ $('msgs').innerHTML = ''; }
+
+/* ================= LEITURA DO EXCEL (modo upload) ================= */
+function handleFile(file){
+  clearMsgs();
+  if(!file) return;
+  if(typeof XLSX === 'undefined'){ showMsg('err','A biblioteca SheetJS não foi carregada (verifique sua conexão com a internet) e a planilha não pôde ser lida.'); return; }
+  if(!/\.(xlsx|xls|xlsm)$/i.test(file.name)){ showMsg('err','Formato não suportado: "'+file.name+'". Envie um arquivo Excel (.xlsx, .xls ou .xlsm).'); return; }
+  var reader = new FileReader();
+  reader.onerror = function(){ showMsg('err','Não foi possível ler o arquivo selecionado.'); };
+  reader.onload = function(e){
+    try{
+      var wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+      var sheetName = wb.SheetNames.indexOf(SHEET_NAME) >= 0 ? SHEET_NAME : null;
+      var fallback = false;
+      if(!sheetName){ sheetName = wb.SheetNames[0]; fallback = true; }
+      if(!sheetName){ showMsg('err','A planilha não contém nenhuma aba.'); return; }
+      var matrix = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {header:1, raw:true, defval:null});
+      var res = buildRecords(matrix);
+      if(res.error){ showMsg('err','Erro de importação em "'+file.name+'": '+res.error+' O painel anterior foi mantido.'); return; }
+      S.rows = res.rows; S.fileName = file.name; S.sheet = sheetName;
+      var notes = res.issues.map(function(i){return i.text;});
+      if(fallback) notes.unshift('Aba "'+SHEET_NAME+'" não encontrada; foi lida a primeira aba ("'+sheetName+'").');
+      showMsg('ok','Planilha "'+file.name+'" importada: '+res.rows.length+' ordens de serviço lidas (aba "'+sheetName+'").', notes.length?notes:null);
+      onDataLoaded();
+    }catch(err){
+      console.error(err);
+      showMsg('err','Falha ao processar o arquivo: '+(err && err.message ? err.message : err)+'. Verifique se não está corrompido ou protegido por senha.');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* ================= FILTROS ================= */
+function getF(){ return {equip:$('fEquip').value||'Todos', month:$('fMonth').value||'Todos', tipo:$('fTipo').value||'Todos'}; }
+function fillSelect(sel, items, keepValue){
+  var cur = keepValue, html = '<option value="Todos">Todos</option>';
+  items.forEach(function(it){ html += '<option value="'+String(it.v).replace(/"/g,'&quot;')+'">'+it.t.replace(/</g,'&lt;')+'</option>'; });
+  sel.innerHTML = html;
+  var ok = items.some(function(it){ return String(it.v)===cur; });
+  sel.value = ok ? cur : 'Todos';
+}
+function populateFilters(){
+  var f = getF();
+  var uniq = function(k){ var o={}; S.rows.forEach(function(r){o[r[k]]=1;}); return Object.keys(o).sort(function(a,b){return a.localeCompare(b,'pt-BR',{numeric:true});}); };
+  fillSelect($('fEquip'), uniq('equip').map(function(v){return {v:v,t:v};}), f.equip);
+  fillSelect($('fTipo'),  uniq('tipo').map(function(v){return {v:v,t:v};}), f.tipo);
+  var yms = {}; S.rows.forEach(function(r){ yms[r.ym]=1; });
+  var items = Object.keys(yms).sort().map(function(ym){ var p=ym.split('-'); return {v:ym, t:MESES[+p[1]-1]+'/'+p[0]}; });
+  fillSelect($('fMonth'), items, f.month);
+}
+function filtered(f){
+  return S.rows.filter(function(r){
+    return (f.equip==='Todos'||r.equip===f.equip) && (f.month==='Todos'||r.ym===f.month) && (f.tipo==='Todos'||r.tipo===f.tipo);
+  });
+}
+
+/* ================= CÁLCULOS ================= */
+function countBy(rows, key){
+  var m = {}; rows.forEach(function(r){ m[r[key]] = (m[r[key]]||0)+1; });
+  return Object.keys(m).map(function(k){ return {name:k, n:m[k]}; })
+    .sort(function(a,b){ return b.n-a.n || a.name.localeCompare(b.name,'pt-BR',{numeric:true}); });
+}
+function chartYear(rows, f){
+  if(f.month!=='Todos') return +f.month.split('-')[0];
+  var src = rows.length ? rows : S.rows, cnt = {}, best = null;
+  src.forEach(function(r){ cnt[r.date.y] = (cnt[r.date.y]||0)+1; });
+  Object.keys(cnt).forEach(function(y){ if(best==null || cnt[y]>cnt[best]) best = y; });
+  return best ? +best : new Date().getFullYear();
+}
+function compute(f){
+  var rows = filtered(f), out = {rows:rows};
+  var enc = rows.filter(function(r){return r.status==='Encerrada';});
+  out.prog = rows.length;
+  out.enc = enc.length;
+  out.ab = rows.filter(function(r){return r.status==='Aberta';}).length;
+  out.can = rows.filter(function(r){return r.status==='Cancelada';}).length;
+  out.hxh = enc.reduce(function(s,r){ return (r.hours!=null && r.qtd!=null) ? s + r.hours*r.qtd : s; }, 0);
+  out.year = chartYear(rows, f);
+  out.mProg = []; out.mEnc = [];
+  for(var m=1;m<=12;m++){
+    var key = out.year+'-'+pad(m);
+    var inM = rows.filter(function(r){return r.ym===key;});
+    out.mProg.push(inM.length);
+    out.mEnc.push(inM.filter(function(r){return r.status==='Encerrada';}).length);
+  }
+  out.prio = countBy(rows,'prio');
+  out.tipo = countBy(rows,'tipo');
+  out.area = countBy(rows,'area');
+  out.equip = countBy(rows,'equip');
+  out.rel = reliability(f, out.year);
+  return out;
+}
+
+/* Confiabilidade baseada em HORAS OPERADAS.
+   Premissa: cada equipamento opera HORAS_DIA h/dia, todos os dias da semana (7 dias), desde 1º de janeiro do ano
+   analisado até o fim do último mês com registros na base. Meses sem falhas continuam acumulando horas operadas.
+   MTBF(mês) = horas operadas acumuladas ÷ falhas corretivas encerradas acumuladas (apenas do mesmo conjunto de equipamentos).
+   Horas operadas = nº equipamentos × dias × HORAS_DIA − tempo de reparo (OS corretivas encerradas). */
+var HORAS_DIA = 8;
+function reliability(f, year){
+  var base = S.rows.filter(function(r){
+    return r.isCorr && r.status==='Encerrada' && r.date.y===year && (f.equip==='Todos'||r.equip===f.equip) && (f.tipo==='Todos'||r.tipo===f.tipo);
+  });
+  var eq = {}; S.rows.forEach(function(r){ if(f.equip==='Todos'||r.equip===f.equip) eq[r.equip]=1; });
+  var nEq = Object.keys(eq).length;
+  var lastM = 0; S.rows.forEach(function(r){ if(r.date.y===year && r.date.m>lastM) lastM = r.date.m; });
+  var endM = lastM;
+  if(f.month!=='Todos'){ var sm = +f.month.split('-')[1]; if(sm<endM) endM = sm; }
+  var res = {nEq:nEq, hDia:HORAS_DIA, endM:endM, year:year, mFails:[], mCum:[], mOp:[], mMtbf:[]};
+  var cumDays=0, cumF=0, cumRep=0, cumRepN=0;
+  for(var m=1;m<=12;m++){
+    if(m>endM){ res.mFails.push(0); res.mCum.push(null); res.mOp.push(null); res.mMtbf.push(null); continue; }
+    var fm = base.filter(function(r){ return r.date.m===m; });
+    cumDays += new Date(Date.UTC(year,m,0)).getUTCDate();
+    cumF += fm.length;
+    fm.forEach(function(r){ if(r.hours!=null){ cumRep += r.hours; cumRepN++; } });
+    var op = nEq*cumDays*HORAS_DIA - cumRep;
+    res.mFails.push(fm.length); res.mCum.push(cumF); res.mOp.push(op);
+    res.mMtbf.push(cumF>0 && op>0 ? op/cumF : null);        // null = ainda sem falhas (nunca zero)
+  }
+  res.nFails = cumF; res.nRep = cumRepN;
+  res.opHours = endM>0 ? res.mOp[endM-1] : null;
+  res.mtbf = endM>0 ? res.mMtbf[endM-1] : null;
+  res.mttr = cumRepN ? cumRep/cumRepN : null;
+  res.disp = (res.mtbf!=null && res.mttr!=null) ? res.mtbf/(res.mtbf+res.mttr)*100 : null;
+  return res;
+}
+
+/* ================= RENDERIZAÇÃO ================= */
+function fmtH(h){ return fmt(h,1)+' h'; }
+function render(){
+  if(typeof Chart === 'undefined'){ showMsg('err','A biblioteca Chart.js não foi carregada (verifique sua conexão com a internet).'); return; }
+  var f = getF(), d = compute(f);
+  $('countPill').textContent = d.prog + ' OS no filtro atual · ' + S.rows.length + ' na base';
+
+  /* KPIs */
+  $('kProg').textContent = fmt(d.prog,0);
+  $('kEnc').textContent = fmt(d.enc,0);
+  $('kAb').textContent = fmt(d.ab,0);
+  $('kCan').textContent = fmt(d.can,0);
+  $('kEncSub').textContent = pct(d.enc,d.prog)+' do total';
+  $('kAbSub').textContent = pct(d.ab,d.prog)+' do total';
+  $('kCanSub').textContent = pct(d.can,d.prog)+' do total';
+  $('kHxh').innerHTML = fmt(d.hxh,1)+'<small>h·h</small>';
+
+  /* Confiabilidade */
+  var rl = d.rel;
+  var periodo = rl.endM>0 ? 'Jan–'+MES_ABR[rl.endM-1]+'/'+rl.year : 'sem dados';
+  setVal('kMtbf', rl.mtbf, function(v){ return fmtH(v); });
+  setVal('kMttr', rl.mttr, function(v){ return fmtH(v); });
+  setVal('kDisp', rl.disp, function(v){ return fmt(v,2)+'%'; });
+  if(rl.mtbf==null && rl.nFails===0) $('kMtbf').textContent = 'Sem falhas registradas';
+  if(rl.disp==null && rl.nFails===0) $('kDisp').textContent = 'Sem falhas registradas';
+  $('kMtbfSub').textContent = rl.mtbf!=null
+    ? fmt(rl.opHours,0)+' h operadas ÷ '+rl.nFails+' falha(s) · '+periodo
+    : (rl.nFails===0 ? 'Nenhuma falha corretiva encerrada em '+periodo+'.' : 'Dados insuficientes de operação.');
+  $('kMttrSub').textContent = rl.mttr!=null ? rl.nRep+' OS corretiva(s) encerrada(s) · '+periodo : 'Sem OS corretivas encerradas com tempo válido.';
+  $('kDispSub').textContent = rl.disp!=null ? 'MTBF ÷ (MTBF + MTTR) × 100' : 'Requer MTBF e MTTR calculáveis.';
+  $('relNote').textContent = 'Premissa: '+rl.nEq+' equipamento(s) operando '+rl.hDia+' h/dia, 7 dias por semana, desde 1º de janeiro de '+rl.year+'. Meses sem falhas continuam acumulando horas operadas, por isso o MTBF é acumulado e a linha é contínua. É uma estimativa baseada nessa escala de operação (a base não registra horímetro). Com um mês selecionado, os cartões mostram o acumulado até o fim desse mês.';
+
+  drawMonthly(d); drawPrio(d); drawTipo(d); drawArea(d); drawEquip(d); drawMtbf(d,f);
+  $('monthHint').textContent = 'Agrupadas pela coluna Data Os · ano ' + d.year;
+}
+function setVal(id, v, fn){
+  var el = $(id);
+  if(v==null){ el.textContent = 'Dados insuficientes'; el.className = 'val na'; }
+  else { el.textContent = fn(v); el.className = 'val'; }
+}
+
+/* ---------- Chart.js ---------- */
+var BASE_FONT = {family:'"Segoe UI",Inter,system-ui,sans-serif', size:12};
+function mk(id, cfg){
+  if(S.charts[id]) S.charts[id].destroy();
+  cfg.options = cfg.options || {};
+  cfg.options.responsive = true; cfg.options.maintainAspectRatio = false; cfg.options.animation = false;
+  var ctx = $(id).getContext('2d');
+  S.charts[id] = new Chart(ctx, cfg);
+}
+function dlOff(){ return {display:false}; }
+var GRID = {color:'#eceff5'};
+var centerText = {
+  id:'centerText',
+  afterDraw:function(chart, args, opts){
+    if(!opts || opts.text==null) return;
+    var a = chart.chartArea, ctx = chart.ctx, cx=(a.left+a.right)/2, cy=(a.top+a.bottom)/2;
+    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle = COL.ink; ctx.font = '700 26px "Segoe UI",system-ui,sans-serif'; ctx.fillText(opts.text, cx, cy-8);
+    ctx.fillStyle = '#667085'; ctx.font = '500 12px "Segoe UI",system-ui,sans-serif'; ctx.fillText('ordens', cx, cy+14);
+    ctx.restore();
+  }
+};
+
+function drawMonthly(d){
+  var mx = Math.max.apply(null, d.mProg.concat([1]));
+  mk('chMonthly', {
+    type:'bar',
+    data:{labels:MES_ABR, datasets:[
+      {label:'Programadas', data:d.mProg, backgroundColor:COL.blue, borderRadius:4},
+      {label:'Finalizadas', data:d.mEnc,  backgroundColor:COL.green, borderRadius:4}
+    ]},
+    options:{
+      interaction:{mode:'index', intersect:false},
+      scales:{ x:{grid:{display:false}}, y:{beginAtZero:true, suggestedMax:mx+1, ticks:{precision:0}, grid:GRID} },
+      plugins:{
+        legend:{position:'top', labels:{usePointStyle:true, pointStyle:'rectRounded', font:BASE_FONT}},
+        tooltip:{callbacks:{title:function(it){ return MESES[it[0].dataIndex]+' de '+d.year; }, label:function(c){ return ' '+c.dataset.label+': '+c.parsed.y+' OS'; }}},
+        datalabels:{display:function(c){ return c.dataset.data[c.dataIndex]>0; }, anchor:'end', align:'end', offset:-2, color:'#344054', font:{size:10.5, weight:'600'}}
+      }
+    }
+  });
+}
+function drawPrio(d){
+  var total = d.prio.reduce(function(s,x){return s+x.n;},0);
+  var labels = d.prio.map(function(x){return x.name;}), vals = d.prio.map(function(x){return x.n;});
+  var extra = 0;
+  var colors = labels.map(function(l){ var c = PRIO_COLORS[norm(l)]; return c || ['#4f8fe8','#8793a6','#7a5cc7','#2a9d8f'][(extra++)%4]; });
+  var empty = total===0;
+  if(empty){ labels=['Sem dados']; vals=[1]; colors=['#e5e7eb']; }
+  mk('chPrio', {
+    type:'doughnut',
+    data:{labels:labels, datasets:[{data:vals, backgroundColor:colors, borderColor:'#fff', borderWidth:2}]},
+    plugins:[centerText],
+    options:{
+      cutout:'58%',
+      plugins:{
+        centerText:{text:String(total)},
+        legend:{position:'bottom', labels:{usePointStyle:true, pointStyle:'circle', font:BASE_FONT,
+          generateLabels:function(ch){
+            var ds = ch.data.datasets[0];
+            return ch.data.labels.map(function(l,i){
+              return {text: empty ? l : l+' — '+ds.data[i]+' ('+pct(ds.data[i],total)+')', fillStyle:ds.backgroundColor[i], strokeStyle:'#fff', lineWidth:1, hidden:!ch.getDataVisibility(i), index:i, pointStyle:'circle'};
+            });
+          }}},
+        tooltip:{enabled:!empty, callbacks:{label:function(c){ return ' '+c.label+': '+c.parsed+' OS ('+pct(c.parsed,total)+')'; }}},
+        datalabels:{display:function(c){ return !empty && c.dataset.data[c.dataIndex]>0; }, color:'#fff', font:{weight:'700', size:11},
+          formatter:function(v){ return v+'\n'+pct(v,total); }, textAlign:'center'}
+      }
+    }
+  });
+}
+function drawTipo(d){
+  var total = d.rows.length;
+  mk('chTipo', {
+    type:'bar',
+    data:{labels:d.tipo.map(function(x){return x.name;}), datasets:[{label:'Ordens', data:d.tipo.map(function(x){return x.n;}), backgroundColor:d.tipo.map(function(x,i){return CAT_PALETTE[i%CAT_PALETTE.length];}), borderRadius:5, maxBarThickness:70}]},
+    options:{
+      scales:{ x:{grid:{display:false}}, y:{beginAtZero:true, ticks:{precision:0}, grid:GRID, grace:'12%'} },
+      plugins:{ legend:{display:false},
+        tooltip:{callbacks:{label:function(c){ return ' '+c.parsed.y+' OS ('+pct(c.parsed.y,total)+')'; }}},
+        datalabels:{anchor:'end', align:'end', offset:-2, color:'#344054', font:{weight:'600', size:11}} }
+    }
+  });
+}
+function hbar(id, items, color, total){
+  mk(id, {
+    type:'bar',
+    data:{labels:items.map(function(x){return x.name;}), datasets:[{label:'Ordens', data:items.map(function(x){return x.n;}), backgroundColor:color, borderRadius:4, barPercentage:.78}]},
+    options:{
+      indexAxis:'y',
+      layout:{padding:{right:34}},
+      scales:{ x:{beginAtZero:true, ticks:{precision:0}, grid:GRID}, y:{grid:{display:false}, ticks:{autoSkip:false, font:{size:11.5}}} },
+      plugins:{ legend:{display:false},
+        tooltip:{callbacks:{title:function(it){ return it[0].label; }, label:function(c){ return ' '+c.parsed.x+' OS ('+pct(c.parsed.x,total)+')'; }}},
+        datalabels:{anchor:'end', align:'end', offset:2, color:'#344054', font:{weight:'600', size:11}} }
+    }
+  });
+}
+function drawArea(d){ hbar('chArea', d.area, COL.blue, d.rows.length); }
+function drawEquip(d){
+  /* Altura proporcional à quantidade de equipamentos para exibir todos os nomes completos. */
+  $('equipBox').style.height = Math.max(300, d.equip.length*30+70) + 'px';
+  hbar('chEquip', d.equip, COL.blue2, d.rows.length);
+}
+function drawMtbf(d, f){
+  var rl = d.rel, mx = Math.max.apply(null, rl.mFails.concat([1]));
+  var anyVal = rl.mMtbf.some(function(v){return v!=null;});
+  var el = $('mtbfEmpty');
+  if(anyVal) el.classList.remove('on');
+  else{
+    el.classList.add('on');
+    $('mtbfEmptyTxt').textContent = 'Sem falhas corretivas registradas no filtro atual: não há MTBF a calcular. As horas operadas continuam acumulando.';
+  }
+  mk('chMtbf', {
+    type:'bar',
+    data:{labels:MES_ABR, datasets:[
+      {type:'bar', label:'Falhas corretivas no mês (qtd)', data:rl.mFails, yAxisID:'y1', backgroundColor:'rgba(214,64,69,.28)', borderColor:COL.red, borderWidth:1, borderRadius:4, maxBarThickness:36, order:2},
+      {type:'line', label:'MTBF acumulado (horas)', data:rl.mMtbf, yAxisID:'y', borderColor:COL.blue, backgroundColor:COL.blue, pointRadius:5, pointHoverRadius:7, borderWidth:2.5, tension:.2, spanGaps:true, order:1}
+    ]},
+    options:{
+      interaction:{mode:'index', intersect:false},
+      scales:{
+        x:{grid:{display:false}},
+        y:{beginAtZero:true, position:'left', title:{display:true, text:'MTBF acumulado (horas)'}, grid:GRID},
+        y1:{beginAtZero:true, position:'right', suggestedMax:mx+1, title:{display:true, text:'Falhas no mês (qtd)'}, ticks:{precision:0, stepSize:1}, grid:{drawOnChartArea:false}}
+      },
+      plugins:{
+        legend:{position:'top', labels:{usePointStyle:true, font:BASE_FONT}},
+        tooltip:{callbacks:{
+          title:function(it){ return MESES[it[0].dataIndex]+' de '+d.year; },
+          label:function(c){
+            if(c.dataset.yAxisID==='y1') return ' Falhas no mês: '+c.parsed.y;
+            return ' MTBF acumulado: '+fmt(c.parsed.y,1)+' h (≈ '+fmt(c.parsed.y/24,1)+' dias)';
+          },
+          afterBody:function(it){
+            var i = it[0].dataIndex;
+            if(rl.mCum[i]==null) return ['Fora do período de análise'];
+            var l = ['Falhas acumuladas: '+rl.mCum[i], 'Horas operadas acumuladas: '+fmt(rl.mOp[i],0)+' h'];
+            if(rl.mMtbf[i]==null) l.unshift('MTBF: sem falhas registradas até o momento');
+            return l;
+          }
+        }},
+        datalabels:{display:function(c){ return c.dataset.type==='line' && c.dataset.data[c.dataIndex]!=null; }, align:'top', color:COL.blue, font:{weight:'700', size:11}, formatter:function(v){ return fmt(v,0); }}
+      }
+    }
+  });
+}
+
+/* ================= EXPORTAÇÃO PDF ================= */
+function nextFrame(){ return new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); }); }
+function delay(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
+
+async function exportPdf(){
+  if(typeof html2canvas==='undefined' || !window.jspdf){ showMsg('err','As bibliotecas html2canvas/jsPDF não foram carregadas (verifique sua conexão com a internet).'); return; }
+  var busy = $('busy'), btn = $('pdfBtn');
+  btn.disabled = true; busy.classList.add('on');
+  var prevY = window.scrollY;
+  try{
+    /* Layout fixo de desktop para captura consistente, independente do tamanho da tela. */
+    document.body.classList.add('pdf-mode');
+    window.scrollTo(0,0);
+    $('filtersWrap').style.position = 'static';
+    Object.keys(S.charts).forEach(function(k){ S.charts[k].resize(); });
+    await nextFrame(); await delay(250);
+    Object.keys(S.charts).forEach(function(k){ S.charts[k].resize(); });
+    await nextFrame(); await delay(150);
+
+    var jsPDF = window.jspdf.jsPDF;
+    var doc = new jsPDF({orientation:'landscape', unit:'mm', format:'a4'});
+    var PW = doc.internal.pageSize.getWidth(), PH = doc.internal.pageSize.getHeight(), M = 10;
+    var BG = [241,244,249];
+    var paintBg = function(){ doc.setFillColor(BG[0],BG[1],BG[2]); doc.rect(0,0,PW,PH,'F'); };
+    paintBg();
+
+    /* Cabeçalho do relatório */
+    var f = getF();
+    var label = function(sel){ return sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : 'Todos'; };
+    doc.setFillColor(15,47,102); doc.roundedRect(M,M,PW-2*M,24,2,2,'F');
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(18);
+    doc.text('ANÁLISE DE MANUTENÇÃO', M+6, M+10);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9);
+    doc.text('Gerado em: ' + new Date().toLocaleString('pt-BR'), PW-M-6, M+9, {align:'right'});
+    doc.text('Filtros — Equipamento: '+label($('fEquip'))+'  |  Mês: '+label($('fMonth'))+'  |  Tipo de manutenção: '+label($('fTipo')), M+6, M+18);
+    var y = M + 24 + 5;
+
+    var ids = ['secKpis','secExec','secDist','secEquip','secRel'];
+    for(var i=0;i<ids.length;i++){
+      var el = $(ids[i]);
+      var cv = await html2canvas(el, {scale:2, backgroundColor:'#f1f4f9', useCORS:true, logging:false, windowWidth:1300});
+      var w = PW-2*M, h = cv.height*w/cv.width, availFull = PH-2*M;
+      if(y + h > PH-M-4){ doc.addPage(); paintBg(); y = M; }
+      if(h > availFull-4){ h = availFull-4; w = cv.width*h/cv.height; }   // seção maior que a página: reduz proporcionalmente
+      doc.addImage(cv.toDataURL('image/png'), 'PNG', M + ((PW-2*M)-w)/2, y, w, h);
+      y += h + 4;
+    }
+    var n = doc.internal.getNumberOfPages();
+    for(var p=1;p<=n;p++){
+      doc.setPage(p); doc.setFontSize(8); doc.setTextColor(102,112,133);
+      doc.text('Análise de Manutenção · página '+p+' de '+n, PW/2, PH-4, {align:'center'});
+    }
+    var d = new Date();
+    doc.save('Analise_de_Manutencao_'+d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'.pdf');
+  }catch(err){
+    console.error(err);
+    showMsg('err','Não foi possível gerar o PDF: '+(err && err.message ? err.message : err));
+  }finally{
+    document.body.classList.remove('pdf-mode');
+    $('filtersWrap').style.position = '';
+    Object.keys(S.charts).forEach(function(k){ S.charts[k].resize(); });
+    window.scrollTo(0, prevY);
+    busy.classList.remove('on'); btn.disabled = false;
+  }
+}
+
+/* ================= INICIALIZAÇÃO ================= */
+function onDataLoaded(){
+  populateFilters();
+  var es = $('emptyState'); if(es) es.hidden = true;
+  $('filtersWrap').hidden = false; $('app').hidden = false; $('pdfBtn').disabled = false;
+  if(MODE==='upload'){
+    $('uploadLabel').textContent = 'Substituir planilha';
+    $('dataInfo').textContent = 'Arquivo: '+S.fileName+' · aba "'+S.sheet+'" · '+S.rows.length+' ordens de serviço';
+  }
+  render();
+}
+
+function init(){
+  ['fEquip','fMonth','fTipo'].forEach(function(id){ $(id).addEventListener('change', render); });
+  $('fClear').addEventListener('click', function(){ ['fEquip','fMonth','fTipo'].forEach(function(id){ $(id).value='Todos'; }); render(); });
+  $('pdfBtn').addEventListener('click', exportPdf);
+  if(typeof Chart!=='undefined' && window.ChartDataLabels){ Chart.register(window.ChartDataLabels); }
+  if(typeof Chart!=='undefined'){ Chart.defaults.font.family = BASE_FONT.family; Chart.defaults.color = '#475467'; }
+
+  if(MODE==='upload'){
+    var inp = $('fileInput');
+    inp.addEventListener('change', function(){ handleFile(inp.files[0]); inp.value=''; });
+    var dz = $('dropzone');
+    ['dragenter','dragover'].forEach(function(ev){ window.addEventListener(ev, function(e){ e.preventDefault(); if(dz) dz.classList.add('drag'); }); });
+    ['dragleave','drop'].forEach(function(ev){ window.addEventListener(ev, function(e){ e.preventDefault(); if(dz) dz.classList.remove('drag'); }); });
+    window.addEventListener('drop', function(e){ if(e.dataTransfer && e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); });
+  } else {
+    try{
+      var cols = Object.keys(EMBEDDED[0]);
+      var matrix = [cols].concat(EMBEDDED.map(function(o){ return cols.map(function(c){ return o[c]; }); }));
+      var res = buildRecords(matrix);
+      if(res.error){ showMsg('err', res.error); return; }
+      S.rows = res.rows;
+      onDataLoaded();
+    }catch(err){ console.error(err); showMsg('err','Falha ao carregar os dados incorporados: '+err.message); }
+  }
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
+
+/* Exposto para testes automatizados */
+window.__dash = {buildRecords:buildRecords, compute:compute, getState:function(){return S;}, parseDuration:parseDuration, parseDate:parseDate};
+})();
+</script>
+</body>
+</html>
